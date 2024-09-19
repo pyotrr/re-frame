@@ -32,17 +32,36 @@
 
 ;; -- Effect Helpers  -----------------------------------------------------------------------------
 
+(defn- find-effect-in-fx-vector
+  "Search for an effect in the `:fx` vector.
+  Return `nil` if effect is not in the `:fx` vector.
+  If effect is found return `[index value]` vector,
+  where `index` is the position on the effect in the `:fx` vector and `value` is the corresponding value"
+  [context key]
+  (let [fx-vec (get-in context [:effects :fx])]
+    (some (fn [[idx [effect-key effect-value]]]
+            (when (= key effect-key) [idx effect-value]))
+          (map-indexed vector fx-vec))))
+
 (defn get-effect
   ([context]
    (:effects context))
   ([context key]
-   (get-in context [:effects key]))
+   (or
+    (get (find-effect-in-fx-vector context key) 1)
+    (get-in context [:effects key])))
   ([context key not-found]
-   (get-in context [:effects key] not-found)))
+   (or
+    (get (find-effect-in-fx-vector context key) 1)
+    (get-in context [:effects key] not-found))))
 
 (defn assoc-effect
   [context key value]
-  (assoc-in context [:effects key] value))
+  (if (get-in context [:effects :fx])
+    (if-let [[original-index _] (find-effect-in-fx-vector context key)]
+      (update-in context [:effects :fx] #(assoc % original-index [key value]))
+      (update-in context [:effects :fx] #(conj % [key value])))
+    (assoc-in context [:effects key] value)))
 
 (defn update-effect
   [context key f & args]
